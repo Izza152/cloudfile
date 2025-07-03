@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Recycle Bin - Cloud File</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body { background: #f8f9fa; }
+        .card { border-radius: 1.2rem; }
+        .table thead th { background: #f1f3f6; }
+        .table td, .table th { vertical-align: middle; }
+        .icon-btn { border: none; background: none; color: #0d6efd; font-size: 1.2rem; }
+        .icon-btn:hover { color: #0a58ca; }
+        @media (max-width: 576px) {
+            .card { min-width: 100% !important; padding: 1.5rem 0.5rem !important; }
+            .table { font-size: 0.95rem; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm mb-4">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="#">Cloud File</a>
+            <div class="d-flex gap-2">
+                <a href="/dashboard" class="btn btn-outline-secondary">Kembali ke Dashboard</a>
+            </div>
+        </div>
+    </nav>
+    <div class="container py-4">
+        <div class="row justify-content-center">
+            <div class="col-12 col-md-10 col-lg-8">
+                <div class="card shadow p-4">
+                    <h2 class="mb-4 text-center">Tempat Sampah</h2>
+                    {% with messages = get_flashed_messages() %}
+                      {% if messages %}
+                        <div class="alert alert-info text-center">{{ messages[0] }}</div>
+                      {% endif %}
+                    {% endwith %}
+                    {% if files or folders %}
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Nama</th>
+                                    <th>Ukuran</th>
+                                    <th>Waktu Dihapus</th>
+                                    <th class="text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for file, size, time in files %}
+                                <tr>
+                                    <td><i class="bi bi-file-earmark"></i> {{ file }}</td>
+                                    <td>{{ size|filesizeformat }}</td>
+                                    <td>{{ time }}</td>
+                                    <td class="text-center">
+                                        <a href="{{ url_for('restore_file', filename=file) }}" class="btn btn-sm btn-success me-1" title="Pulihkan"><i class="bi bi-arrow-counterclockwise"></i> Pulihkan</a>
+                                        <a href="#" class="btn btn-sm btn-danger btn-permanent-delete" data-href="{{ url_for('permanent_delete', filename=file) }}" title="Hapus Permanen"><i class="bi bi-trash"></i> Hapus</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                {% for folder in folders %}
+                                <tr>
+                                    <td><i class="bi bi-folder"></i> {{ folder }}</td>
+                                    <td>Folder</td>
+                                    <td>-</td>
+                                    <td class="text-center">
+                                        <a href="{{ url_for('restore_folder', foldername=folder) }}" class="btn btn-sm btn-success me-1" title="Pulihkan"><i class="bi bi-arrow-counterclockwise"></i> Pulihkan</a>
+                                        <a href="#" class="btn btn-sm btn-danger btn-permanent-delete" data-href="{{ url_for('permanent_delete_folder', foldername=folder) }}" title="Hapus Permanen"><i class="bi bi-trash"></i> Hapus</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                        <div class="alert alert-secondary text-center mb-0">Tempat Sampah kosong.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <footer class="text-center py-4 mt-5 border-top bg-white">
+        <span class="text-muted">&copy; 2025 Cloud File. Semua hak cipta dilindungi.</span>
+    </footer>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Modal Konfirmasi Hapus Permanen -->
+    <div class="modal fade" id="confirmPermanentDeleteModal" tabindex="-1" aria-labelledby="confirmPermanentDeleteModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header bg-danger-subtle">
+            <h5 class="modal-title" id="confirmPermanentDeleteModalLabel"><i class="bi bi-trash"></i> Konfirmasi Hapus Permanen</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-0">Apakah Anda yakin ingin <strong>menghapus permanen</strong> file/folder ini? Tindakan ini <strong>tidak dapat dibatalkan</strong>.</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+            <a href="#" class="btn btn-danger" id="confirmPermanentDeleteBtn">Ya, Hapus Permanen</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+    window.addEventListener('DOMContentLoaded', function() {
+        // Handler tombol hapus permanen
+        const modalEl = document.getElementById('confirmPermanentDeleteModal');
+        const confirmPermanentDeleteBtn = document.getElementById('confirmPermanentDeleteBtn');
+        if (!modalEl || !confirmPermanentDeleteBtn) {
+            console.error('Modal atau tombol konfirmasi hapus permanen tidak ditemukan!');
+            return;
+        }
+        const confirmPermanentDeleteModal = new bootstrap.Modal(modalEl);
+        document.querySelectorAll('.btn-permanent-delete').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const href = this.getAttribute('data-href');
+                confirmPermanentDeleteBtn.setAttribute('href', href);
+                confirmPermanentDeleteModal.show();
+            });
+        });
+    });
+    </script>
+</body>
+</html> 

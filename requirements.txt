@@ -1,0 +1,10 @@
+Flask==2.2.5
+gunicorn==20.1.0
+werkzeug>=2.0
+python-docx>=0.8.11
+beautifulsoup4>=4.9
+mammoth>=1.6
+html2docx>=0.0.6
+pypandoc>=1.7
+openpyxl
+lxml 

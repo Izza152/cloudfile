@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Edit Dokumen Word</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-8">
+            <div class="card shadow p-4 mb-4">
+                <h3 class="mb-3">Edit Dokumen Word</h3>
+                <div class="mb-2"><strong>Nama file:</strong> {{ filename }}</div>
+                <form id="editWordForm">
+                    <div class="mb-3">
+                        <label for="filenameInput" class="form-label">Nama File</label>
+                        <input type="text" class="form-control" id="filenameInput" name="filename" value="{{ filename }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="wordContent" class="form-label">Isi Dokumen</label>
+                        <textarea class="form-control" id="wordContent" name="content" rows="15">{{ content }}</textarea>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Simpan</button>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary ms-auto">Kembali</a>
+                        <button type="button" class="btn btn-danger ms-2" id="deleteWordBtn">Hapus</button>
+                    </div>
+                    <div id="saveMsg" class="mt-2"></div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tinymce/6.7.2/tinymce.min.js"></script>
+<script>
+tinymce.init({
+    selector: '#wordContent',
+    height: 500,
+    menubar: false,
+    plugins: [
+        'advlist autolink lists link charmap preview anchor',
+        'searchreplace visualblocks code fullscreen',
+        'insertdatetime table code help wordcount',
+        'image',
+    ],
+    toolbar: 'undo redo | formatselect | bold italic underline | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | image | removeformat | help',
+    branding: false,
+    language: 'id',
+    images_upload_url: '/upload_image_word',
+    automatic_uploads: true,
+    images_upload_handler: function (blobInfo, success, failure) {
+        var xhr, formData;
+        xhr = new XMLHttpRequest();
+        xhr.withCredentials = false;
+        xhr.open('POST', '/upload_image_word');
+        xhr.onload = function() {
+            var json;
+            if (xhr.status != 200) {
+                failure('Upload gagal: ' + xhr.status);
+                return;
+            }
+            json = JSON.parse(xhr.responseText);
+            if (!json || typeof json.location != 'string') {
+                failure('Upload gagal');
+                return;
+            }
+            success(json.location);
+        };
+        formData = new FormData();
+        formData.append('file', blobInfo.blob(), blobInfo.filename());
+        xhr.send(formData);
+    }
+});
+document.getElementById('editWordForm').onsubmit = function(e) {
+    e.preventDefault();
+    const btn = this.querySelector('button[type=\"submit\"]');
+    const msg = document.getElementById('saveMsg');
+    btn.disabled = true;
+    msg.textContent = '';
+    const content = tinymce.get('wordContent').getContent();
+    const newFilename = document.getElementById('filenameInput').value.trim();
+    fetch('/save_word', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            filename: newFilename,
+            old_filename: '{{ filename }}',
+            content: content
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if(data.success) {
+            msg.textContent = 'Berhasil disimpan!';
+            msg.className = 'text-success mt-2';
+            if (newFilename !== '{{ filename }}') {
+                setTimeout(function() {
+                    window.location.href = '/edit_word/' + encodeURIComponent(newFilename);
+                }, 800);
+            }
+        } else {
+            msg.textContent = data.message || 'Gagal menyimpan dokumen.';
+            msg.className = 'text-danger mt-2';
+        }
+        btn.disabled = false;
+    })
+    .catch(() => {
+        msg.textContent = 'Gagal menyimpan dokumen.';
+        msg.className = 'text-danger mt-2';
+        btn.disabled = false;
+    });
+};
+document.getElementById('deleteWordBtn').onclick = function() {
+    if(confirm('Yakin ingin menghapus dokumen ini?')) {
+        fetch('/delete_file_word/' + encodeURIComponent(document.getElementById('filenameInput').value.trim()), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if(data.success) {
+                window.location.href = '/dashboard';
+            } else {
+                alert(data.message || 'Gagal menghapus file.');
+            }
+        })
+        .catch(() => alert('Gagal menghapus file.'));
+    }
+};
+</script>
+</body>
+</html> 

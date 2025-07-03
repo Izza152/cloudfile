@@ -1,0 +1,1140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard - Cloud File</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/@simonwep/selection-js/dist/selection.min.js"></script>
+    <style>
+    @media (max-width: 576px) {
+        #drop-area { padding: 1rem !important; font-size: 1rem; }
+        .table { font-size: 0.95rem; }
+        .navbar-brand { font-size: 1.2rem; }
+    }
+    .file-item { cursor: pointer; transition: box-shadow 0.2s; }
+    .file-item:hover { box-shadow: 0 0 0.5rem #007bff33; }
+    #contextMenu { user-select: none; }
+    #preloader {
+      position: fixed;
+      z-index: 9999;
+      background: #fff;
+      width: 100vw;
+      height: 100vh;
+      top: 0; left: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: opacity 0.4s;
+    }
+    #preloader.hide {
+      opacity: 0;
+      pointer-events: none;
+    }
+    @media (max-width: 768px) {
+        .table-responsive table {
+            font-size: 0.95rem;
+        }
+        .table-responsive th, .table-responsive td {
+            min-width: 80px;
+            white-space: pre-line;
+        }
+    }
+    .table-responsive th, .table-responsive td {
+        vertical-align: middle;
+    }
+    @media (max-width: 992px) {
+        .table-responsive table {
+            min-width: 700px;
+            font-size: 0.95rem;
+        }
+        .table-responsive th, .table-responsive td {
+            min-width: 80px;
+            white-space: pre-line;
+        }
+    }
+    #devInfoBtn:hover { opacity: 1; box-shadow:0 4px 16px #0003; }
+    body.dark-mode .navbar-brand.text-primary {
+        color: #0d6efd !important;
+    }
+    .paket-btn { color: #0d6efd !important; border-color: #0d6efd !important; background: #fff !important; }
+    .paket-btn:hover, .paket-btn:focus { background: #e7f1ff !important; color: #0a58ca !important; }
+    body.dark-mode .paket-btn { color: #fff !important; border-color: #6ea8fe !important; background: #0d6efd !important; }
+    body.dark-mode .paket-btn:hover, body.dark-mode .paket-btn:focus { background: #1a2a4a !important; color: #b6d4fe !important; }
+    </style>
+</head>
+<body class="bg-light">
+    <!-- Preloader -->
+    <div id="preloader">
+      <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    (function() {
+        // Inisialisasi tema sebelum render
+        const theme = localStorage.getItem('theme');
+        if (theme === 'dark') {
+            document.body.classList.add('dark-mode');
+        }
+    })();
+    </script>
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="/">
+                <img src="/static/cloudfile-logo.svg" alt="Cloud File Logo" width="32" height="32" style="vertical-align:middle;">
+                <span style="color:#0d6efd; font-weight:600;">Cloud File</span>
+                {% if user_has_package %}
+                    <span class="badge bg-success align-middle ms-1" style="font-size:0.75rem; letter-spacing:0.5px;">Plus{% if user_package_code in ['S','M','L'] %} {{ user_package_code }}{% endif %}</span>
+                {% else %}
+                    <span class="badge bg-secondary align-middle ms-1" style="font-size:0.75rem; letter-spacing:0.5px;">Free</span>
+                {% endif %}
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse justify-content-end" id="mainNavbar">
+                <div class="navbar-nav ms-auto gap-2 align-items-center">
+                    <a href="/" class="nav-link btn btn-outline-secondary px-3 py-1">Homepage</a>
+                    <a href="/package/S" class="nav-link btn paket-btn px-3 py-1">Paket</a>
+                    <button data-bs-toggle="modal" data-bs-target="#profileModal" class="nav-link btn btn-primary px-3 py-1">Profil</button>
+                    <a href="{{ url_for('settings') }}" class="nav-link btn btn-outline-secondary px-3 py-1" title="Pengaturan"><i class="bi bi-gear"></i> Setting</a>
+                    <a href="#" class="nav-link btn btn-outline-danger px-3 py-1" id="logoutBtn" data-bs-toggle="modal" data-bs-target="#logoutModal">Keluar</a>
+                    <button id="themeToggle" class="nav-link btn btn-outline-secondary px-2 py-1" title="Ganti tema">
+                        <i class="bi bi-moon"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+    <div class="container py-4">
+        <div class="row justify-content-center">
+            <div class="col-12 col-md-8">
+                <div class="card shadow p-4 mb-4">
+                    <h3 class="mb-3">Berkas Anda</h3>
+                    {% if path %}
+                        <a href="{{ url_for('dashboard', path=path.rsplit('/', 1)[0]) if '/' in path else url_for('dashboard') }}" class="btn btn-outline-secondary mb-3 w-100 w-md-auto">
+                            <i class="bi bi-arrow-left"></i> Kembali
+                        </a>
+                    {% endif %}
+                    {% with messages = get_flashed_messages() %}
+                      {% if messages %}
+                        <div class="alert alert-info">{{ messages[0] }}</div>
+                      {% endif %}
+                    {% endwith %}
+                    <p>Selamat datang, {{ user_name or email }}</p>
+                    <div class="text-end mb-2">
+                      <span style="font-size:1rem;font-weight:500;color:#555;">Jam Aktif:</span>
+                      <span id="clock" style="font-size:1.25rem;font-weight:600;color:#0d6efd;"></span>
+                    </div>
+                    <div class="d-flex justify-content-end mb-3">
+                        <a href="{{ url_for('dashboard', path=path, view='list') }}" class="btn btn-outline-primary {% if view == 'list' %}active{% endif %} me-2">
+                            <i class="bi bi-list"></i> Daftar
+                        </a>
+                        <a href="{{ url_for('dashboard', path=path, view='grid') }}" class="btn btn-outline-primary {% if view == 'grid' %}active{% endif %}">
+                            <i class="bi bi-grid"></i> Grid
+                        </a>
+                    </div>
+                    <form method="get" class="d-flex flex-column flex-md-row gap-2 mb-2">
+                        <input type="text" name="q" class="form-control" placeholder="Cari berkas..." value="{{ request.args.get('q', '') }}">
+                        <select name="sort" class="form-select w-100 w-md-auto" onchange="this.form.submit()">
+                            <option value="">Urutkan</option>
+                            <option value="newest" {% if request.args.get('sort') == 'newest' %}selected{% endif %}>Terbaru</option>
+                            <option value="oldest" {% if request.args.get('sort') == 'oldest' %}selected{% endif %}>Terlama</option>
+                        </select>
+                        <button type="submit" class="btn btn-outline-primary w-100 w-md-auto"><i class="bi bi-search"></i> Cari</button>
+                        {% if request.args.get('q') %}
+                            <a href="{{ url_for('dashboard', path=path) }}" class="btn btn-outline-secondary w-100 w-md-auto">Reset</a>
+                        {% endif %}
+                    </form>
+                    <form method="post" class="mb-2 d-flex flex-column flex-md-row gap-2">
+                        <input type="text" name="foldername" class="form-control" placeholder="Nama folder" required>
+                        <button type="submit" class="btn btn-secondary w-100 w-md-auto">Buat Folder</button>
+                    </form>
+                    <form id="uploadForm" method="post" enctype="multipart/form-data" class="mb-3">
+                        <div id="drop-area" class="border border-2 border-primary rounded p-3 text-center bg-white" style="cursor:pointer;">
+                            <i class="bi bi-cloud-arrow-up" style="font-size:2rem;"></i>
+                            <p class="mb-2">Tarik & lepas berkas di sini atau klik untuk memilih berkas</p>
+                            <input type="file" name="file" id="fileElem" class="form-control d-none" required>
+                            <span id="fileLabel" class="text-secondary"></span>
+                        </div>
+                        <button class="btn btn-primary w-100 mt-2" type="submit">Unggah</button>
+                        <div class="progress mt-2 d-none" id="progressContainer">
+                            <div class="progress-bar" id="progressBar" role="progressbar" style="width: 0%">0%</div>
+                        </div>
+                    </form>
+                    <div class="d-flex justify-content-end mb-3">
+                        <a href="/recycle_bin" class="btn btn-outline-warning"><i class="bi bi-trash3"></i> Tempat Sampah</a>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label mb-1"><strong>Penyimpanan Terpakai:</strong></label>
+                        {% set percent = (used / storage_limit * 100) | round(2) %}
+                        <div class="progress" style="height: 1.5rem;">
+                            <div class="progress-bar bg-info" role="progressbar" aria-valuenow="{{ percent }}" aria-valuemin="0" aria-valuemax="100" style="width: {{ percent }}%; font-weight:500;">
+                            </div>
+                        </div>
+                        <div class="text-center mt-1 small fw-semibold">
+                            {{ (used / (1024*1024))|round(2) }} MB / {{ (storage_limit / (1024*1024))|round(0) }} MB ({{ percent }}%)
+                        </div>
+                    </div>
+                    <button class="btn btn-success mb-3" id="newWordBtn"><i class="bi bi-file-earmark-word"></i> Buat Dokumen Word</button>
+                    <button class="btn btn-success mb-3 ms-2" id="newExcelBtn"><i class="bi bi-file-earmark-excel"></i> Buat Excel</button>
+                    <h5>Folder & Berkas</h5>
+                    {% if view == 'grid' %}
+                        <div class="row">
+                            {% for file, size, time in files %}
+                                {% set is_video = file.lower().endswith('.mp4') or file.lower().endswith('.webm') or file.lower().endswith('.ogg') %}
+                                {% set is_audio = file.lower().endswith('.mp3') or file.lower().endswith('.wav') or file.lower().endswith('.ogg') %}
+                                <div class="col-6 col-md-3 mb-4">
+                                    <div class="card h-100 file-item selectable-block" data-type="file" data-name="{{ file }}" tabindex="0" style="cursor:pointer;">
+                                        <div class="card-body">
+                                            <h6 class="card-title">{{ file }}</h6>
+                                            <p class="card-text">{{ size|filesizeformat }}<br>{{ time }}</p>
+                                            <div class="d-flex gap-2 mt-2 align-items-center">
+                                                <a href="{{ url_for('preview', filename=(path ~ '/' ~ file if path else file)) }}" class="btn btn-sm btn-outline-primary" title="Pratinjau"><i class="bi bi-eye"></i></a>
+                                                {% if file.lower().endswith('.docx') %}
+                                                <a href="{{ url_for('edit_word', filename=(path ~ '/' ~ file if path else file)) }}" class="btn btn-sm btn-outline-success" title="Edit"><i class="bi bi-pencil-square"></i></a>
+                                                {% endif %}
+                                                {% if is_video or is_audio %}
+                                                <button class="btn btn-sm btn-outline-info btn-play-media" data-filename="{{ path ~ '/' ~ file if path else file }}" data-type="{{ 'video' if is_video else 'audio' }}" title="Play"><i class="bi bi-play-circle"></i></button>
+                                                {% endif %}
+                                                <div class="dropdown d-inline" onclick="event.stopPropagation();">
+                                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" tabindex="-1">
+                                                        <i class="bi bi-three-dots"></i>
+                                                    </button>
+                                                    <ul class="dropdown-menu dropdown-menu-end">
+                                                        <li><a class="dropdown-item" href="{{ url_for('download', path=(path ~ '/' ~ file if path else file)) }}"><i class="bi bi-download"></i> Unduh</a></li>
+                                                        <li><a class="dropdown-item btn-delete-file" href="#" data-href="{{ url_for('delete', filename=(path ~ '/' ~ file if path else file)) }}"><i class="bi bi-trash"></i> Hapus</a></li>
+                                                        <li><a class="dropdown-item btn-properties" href="#" data-path="{{ path ~ '/' ~ file if path else file }}"><i class="bi bi-info-circle"></i> Properties</a></li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                            {% for folder in folders %}
+                                <div class="col-6 col-md-3 mb-4">
+                                    <div class="card h-100 file-item selectable-block" data-type="folder" data-name="{{ folder }}" tabindex="0" style="cursor:pointer;">
+                                        <div class="card-body">
+                                            <h6 class="card-title"><i class="bi bi-folder"></i> {{ folder }}</h6>
+                                            <p class="card-text">Folder</p>
+                                            <div class="d-flex gap-2 mt-2 align-items-center">
+                                                <a href="#" class="btn btn-sm btn-outline-primary" onclick="window.location.href='{{ url_for('dashboard', path=(path ~ '/' ~ folder if path else folder)) }}'; event.stopPropagation()" title="Buka"><i class="bi bi-folder2-open"></i></a>
+                                                <div class="dropdown d-inline" onclick="event.stopPropagation();">
+                                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" tabindex="-1">
+                                                        <i class="bi bi-three-dots"></i>
+                                                    </button>
+                                                    <ul class="dropdown-menu dropdown-menu-end">
+                                                        <li><a class="dropdown-item btn-delete-folder" href="#" data-href="{{ url_for('delete_folder', path=(path ~ '/' ~ folder if path else folder)) }}"><i class="bi bi-trash"></i> Hapus</a></li>
+                                                        <li><a class="dropdown-item btn-properties" href="#" data-path="{{ path ~ '/' ~ folder if path else folder }}"><i class="bi bi-info-circle"></i> Properties</a></li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="table-responsive">
+                            <table class="table table-hover table-bordered align-middle w-100" style="width:100%;">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width:45%; min-width:120px;">Nama</th>
+                                        <th style="width:15%; min-width:80px;">Ukuran</th>
+                                        <th style="width:20%; min-width:100px;">Diubah</th>
+                                        <th style="width:20%; min-width:120px;">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for folder in folders %}
+                                        <tr class="file-item selectable-block" data-type="folder" data-name="{{ folder }}" tabindex="0" style="cursor:pointer;">
+                                            <td style="word-break:break-all; white-space:normal;"><i class="bi bi-folder"></i> {{ folder }}</td>
+                                            <td>Folder</td>
+                                            <td>-</td>
+                                            <td>
+                                                <a href="#" class="btn btn-sm btn-outline-primary" onclick="window.location.href='{{ url_for('dashboard', path=(path ~ '/' ~ folder if path else folder)) }}'; event.stopPropagation()" title="Buka"><i class="bi bi-folder2-open"></i></a>
+                                                <div class="dropdown d-inline" onclick="event.stopPropagation();">
+                                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" tabindex="-1">
+                                                        <i class="bi bi-three-dots"></i>
+                                                    </button>
+                                                    <ul class="dropdown-menu dropdown-menu-end">
+                                                        <li><a class="dropdown-item btn-delete-folder" href="#" data-href="{{ url_for('delete_folder', path=(path ~ '/' ~ folder if path else folder)) }}"><i class="bi bi-trash"></i> Hapus</a></li>
+                                                        <li><a class="dropdown-item btn-properties" href="#" data-path="{{ path ~ '/' ~ folder if path else folder }}"><i class="bi bi-info-circle"></i> Properties</a></li>
+                                                    </ul>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                    {% for file, size, time in files %}
+                                        {% set is_video = file.lower().endswith('.mp4') or file.lower().endswith('.webm') or file.lower().endswith('.ogg') %}
+                                        {% set is_audio = file.lower().endswith('.mp3') or file.lower().endswith('.wav') or file.lower().endswith('.ogg') %}
+                                        <tr class="file-item selectable-block" data-type="file" data-name="{{ file }}" tabindex="0" style="cursor:pointer;">
+                                            <td style="word-break:break-all; white-space:normal;">{{ file }}</td>
+                                            <td>{{ size|filesizeformat }}</td>
+                                            <td>{{ time }}</td>
+                                            <td>
+                                                <a href="{{ url_for('preview', filename=(path ~ '/' ~ file if path else file)) }}" class="btn btn-sm btn-outline-primary" title="Pratinjau"><i class="bi bi-eye"></i></a>
+                                                {% if file.lower().endswith('.docx') %}
+                                                <a href="{{ url_for('edit_word', filename=(path ~ '/' ~ file if path else file)) }}" class="btn btn-sm btn-outline-success" title="Edit"><i class="bi bi-pencil-square"></i></a>
+                                                {% endif %}
+                                                {% if is_video or is_audio %}
+                                                <button class="btn btn-sm btn-outline-info btn-play-media" data-filename="{{ path ~ '/' ~ file if path else file }}" data-type="{{ 'video' if is_video else 'audio' }}" title="Play"><i class="bi bi-play-circle"></i></button>
+                                                {% endif %}
+                                                <div class="dropdown d-inline" onclick="event.stopPropagation();">
+                                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" tabindex="-1">
+                                                        <i class="bi bi-three-dots"></i>
+                                                    </button>
+                                                    <ul class="dropdown-menu dropdown-menu-end">
+                                                        <li><a class="dropdown-item" href="{{ url_for('download', path=(path ~ '/' ~ file if path else file)) }}"><i class="bi bi-download"></i> Unduh</a></li>
+                                                        <li><a class="dropdown-item btn-delete-file" href="#" data-href="{{ url_for('delete', filename=(path ~ '/' ~ file if path else file)) }}"><i class="bi bi-trash"></i> Hapus</a></li>
+                                                        <li><a class="dropdown-item btn-properties" href="#" data-path="{{ path ~ '/' ~ file if path else file }}"><i class="bi bi-info-circle"></i> Properties</a></li>
+                                                    </ul>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% endif %}
+                    <!-- Context Menu -->
+                    <div id="contextMenu" class="position-fixed bg-white border rounded shadow-sm d-none" style="z-index:9999; min-width:150px;">
+                        <ul class="list-unstyled mb-0" style="padding:0.5rem 0;">
+                            <li class="context-preview d-none"><a href="#" class="dropdown-item"><i class="bi bi-eye"></i> Pratinjau</a></li>
+                            <li class="context-download d-none"><a href="#" class="dropdown-item"><i class="bi bi-download"></i> Unduh</a></li>
+                            <li class="context-open d-none"><a href="#" class="dropdown-item"><i class="bi bi-folder2-open"></i> Buka</a></li>
+                            <li class="context-delete"><a href="#" class="dropdown-item text-danger"><i class="bi bi-trash"></i> Hapus</a></li>
+                            <li class="context-properties"><a href="#" class="dropdown-item"><i class="bi bi-info-circle"></i> Properties</a></li>
+                        </ul>
+                    </div>
+                    <!-- Tombol Info Pengembang (pojok kanan bawah) -->
+                    <button class="btn btn-info btn-sm rounded-pill position-fixed" id="devInfoBtn" style="bottom:24px; right:24px; z-index:1055; opacity:0.75; box-shadow:0 2px 8px #0002;" data-bs-toggle="modal" data-bs-target="#devInfoModal">Info Pengembang</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Modal Info Pengembang -->
+    <div class="modal fade" id="devInfoModal" tabindex="-1" aria-labelledby="devInfoModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-sm modal-md modal-lg">
+        <div class="modal-content border-0 shadow-lg">
+          <div class="modal-header bg-primary text-white align-items-center">
+            <span class="me-2 fs-3"><i class="bi bi-person-badge"></i></span>
+            <h5 class="modal-title flex-grow-1" id="devInfoModalLabel">Informasi Pengembang</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body py-4 px-3 text-center">
+            <p class="mb-2">Cloud File ini masih dalam tahapan pengembangan.<br>Jika menemukan error atau bug bisa hubungi melalui email <a href="mailto:cloudfileservice80@gmail.com" class="text-primary">cloudfileservice80@gmail.com</a></p>
+          </div>
+          <div class="modal-footer justify-content-center border-0 pb-4">
+            <button type="button" class="btn btn-primary px-4" data-bs-dismiss="modal">Tutup</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Modal Update Versi -->
+    <div class="modal fade" id="updateInfoModal" tabindex="-1" aria-labelledby="updateInfoModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-sm modal-md modal-lg">
+        <div class="modal-content border-0 shadow-lg">
+          <div class="modal-header bg-success text-white align-items-center">
+            <span class="me-2 fs-3"><i class="bi bi-stars"></i></span>
+            <h5 class="modal-title flex-grow-1" id="updateInfoModalLabel">Update versi 0.103 Beta Cloud File</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body py-4 px-3">
+            <ul class="list-unstyled mb-3">
+              <li class="mb-2"><i class="bi bi-play-circle text-success me-2"></i>Penambahan fitur <strong>Media Player</strong> (video & audio langsung di aplikasi)</li>
+              <li class="mb-2"><i class="bi bi-trash text-danger me-2"></i>Menambahkan <strong>tombol hapus history perangkat</strong> pada pengaturan</li>
+              <li class="mb-2"><i class="bi bi-bug text-danger me-2"></i>Memperbaiki berbagai bug/error</li>
+              <li class="mb-2"><i class="bi bi-phone text-primary me-2"></i>Perbaikan tampilan agar lebih <strong>responsif</strong> di berbagai perangkat</li>
+              <li class="mb-2"><i class="bi bi-moon-stars text-dark me-2"></i>Perbaikan dan peningkatan <strong>mode gelap (Dark Mode)</strong></li>
+              <li class="mb-2"><i class="bi bi-cloud-plus text-primary me-2"></i>Akan hadir: <strong>Paket L 500GB</strong> dan <strong>Paket XL 1TB</strong></li>
+            </ul>
+            <div class="mt-3 text-center text-info fw-semibold">Terima kasih telah menggunakan Cloud File!</div>
+            <p class="text-muted small text-end">Versi: 0.103 Beta</p>
+          </div>
+          <div class="modal-footer justify-content-center border-0 pb-4">
+            <button type="button" class="btn btn-success px-4" data-bs-dismiss="modal">Tutup</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <style>
+    .modal-content { border-radius: 1.2rem; }
+    @media (max-width: 576px) {
+      .modal-content { border-radius: 0.7rem; }
+      .modal-header, .modal-footer { padding-left: 1rem; padding-right: 1rem; }
+    }
+    @media (max-width: 992px) {
+        .navbar-nav { gap: 0.5rem !important; }
+        .navbar-brand { font-size: 1.1rem !important; }
+        .navbar .btn, .navbar .nav-link { font-size: 0.97rem !important; padding: 0.4rem 0.8rem !important; }
+    }
+    @media (max-width: 576px) {
+        .navbar-brand { font-size: 1rem !important; }
+        .navbar .btn, .navbar .nav-link { font-size: 0.93rem !important; padding: 0.35rem 0.7rem !important; }
+        .navbar-brand img { width: 26px !important; height: 26px !important; }
+    }
+    </style>
+    <script>
+    const dropArea = document.getElementById('drop-area');
+    const fileInput = document.getElementById('fileElem');
+    const fileLabel = document.getElementById('fileLabel');
+    const uploadForm = document.getElementById('uploadForm');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBar = document.getElementById('progressBar');
+
+    dropArea.addEventListener('click', () => fileInput.click());
+
+    dropArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropArea.classList.add('bg-primary', 'text-white');
+    });
+    dropArea.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dropArea.classList.remove('bg-primary', 'text-white');
+    });
+    dropArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropArea.classList.remove('bg-primary', 'text-white');
+        if (e.dataTransfer.files.length) {
+            fileInput.files = e.dataTransfer.files;
+            fileLabel.textContent = e.dataTransfer.files[0].name;
+        }
+    });
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length) {
+            fileLabel.textContent = fileInput.files[0].name;
+        }
+    });
+
+    // Progress bar upload
+    uploadForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(uploadForm);
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', window.location.pathname + window.location.search, true);
+
+        xhr.upload.addEventListener('progress', function(e) {
+            if (e.lengthComputable) {
+                const percent = Math.round((e.loaded / e.total) * 100);
+                progressContainer.classList.remove('d-none');
+                progressBar.style.width = percent + '%';
+                progressBar.textContent = percent + '%';
+            }
+        });
+
+        xhr.onload = function() {
+            if (xhr.status === 200) {
+                progressBar.style.width = '100%';
+                progressBar.textContent = '100%';
+                setTimeout(() => {
+                    progressContainer.classList.add('d-none');
+                    progressBar.style.width = '0%';
+                    progressBar.textContent = '0%';
+                    window.location.reload();
+                }, 500);
+            } else {
+                alert('Upload failed!');
+                progressContainer.classList.add('d-none');
+                progressBar.style.width = '0%';
+                progressBar.textContent = '0%';
+            }
+        };
+
+        xhr.onerror = function() {
+            alert('Upload error!');
+            progressContainer.classList.add('d-none');
+            progressBar.style.width = '0%';
+            progressBar.textContent = '0%';
+        };
+
+        xhr.send(formData);
+    });
+
+    document.getElementById('profileForm').onsubmit = async function(e) {
+        e.preventDefault();
+        const form = e.target;
+        const data = new FormData(form);
+        const msgDiv = document.getElementById('profileMsg');
+        msgDiv.textContent = '';
+        msgDiv.classList.remove('text-danger', 'text-success');
+        try {
+            const res = await fetch('/profile', {
+                method: 'POST',
+                body: data
+            });
+            const result = await res.json();
+            msgDiv.textContent = result.message;
+            if(result.success) {
+                msgDiv.classList.add('text-success');
+                form.reset();
+            } else {
+                msgDiv.classList.add('text-danger');
+            }
+        } catch (err) {
+            msgDiv.textContent = 'Server error. Please try again.';
+            msgDiv.classList.add('text-danger');
+        }
+    };
+    </script>
+    <script>
+    // Theme toggle
+    const themeToggle = document.getElementById('themeToggle');
+    const icon = themeToggle.querySelector('i');
+    function setTheme(dark) {
+        if (dark) {
+            document.body.classList.add('dark-mode');
+            icon.classList.remove('bi-moon');
+            icon.classList.add('bi-sun');
+            localStorage.setItem('theme', 'dark');
+        } else {
+            document.body.classList.remove('dark-mode');
+            icon.classList.remove('bi-sun');
+            icon.classList.add('bi-moon');
+            localStorage.setItem('theme', 'light');
+        }
+    }
+    themeToggle.addEventListener('click', () => {
+        setTheme(!document.body.classList.contains('dark-mode'));
+    });
+    // On load, set theme from localStorage
+    setTheme(localStorage.getItem('theme') === 'dark');
+    </script>
+    <!-- Modal Profile -->
+    <div class="modal fade" id="profileModal" tabindex="-1" aria-labelledby="profileModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="profileForm">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="profileModalLabel">Profil</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label>Email</label>
+                            <input type="text" class="form-control" value="{{ email }}" readonly>
+                        </div>
+                        <div class="mb-3">
+                            <label>Nama Pengguna</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="profileName" name="new_name" value="{{ user_name or '' }}" required>
+                                <button class="btn btn-outline-primary" type="button" id="updateNameBtn">Update</button>
+                            </div>
+                            <div id="updateNameMsg" class="form-text"></div>
+                        </div>
+                        <hr>
+                        <div class="mb-3">
+                            <label>Password Lama</label>
+                            <input type="password" class="form-control" name="old_password" required>
+                        </div>
+                        <div class="mb-3">
+                            <label>Password Baru</label>
+                            <input type="password" class="form-control" name="new_password" required>
+                        </div>
+                        <div id="profileMsg" class="text-danger"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-primary">Perbarui Password</button>
+                        <button type="button" class="btn btn-danger ms-auto" id="deleteAccountBtn">Hapus Akun</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <!-- Modal Konfirmasi Hapus Akun -->
+    <div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="confirmDeleteModalLabel">Konfirmasi Hapus Akun</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+          </div>
+          <div class="modal-body">
+            Apakah Anda yakin ingin menghapus akun Anda? Tindakan ini tidak dapat dibatalkan dan semua data Anda akan hilang.
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+            <button type="button" class="btn btn-danger" id="confirmDeleteAccountBtn">Ya, Hapus Akun</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+    // Context menu logic
+    const contextMenu = document.getElementById('contextMenu');
+    let contextTarget = null;
+    function handleFileItemEvents() {
+        document.querySelectorAll('.file-item').forEach(item => {
+            // Klik kiri
+            item.addEventListener('click', function(e) {
+                if (e.button === 0) { // left click
+                    const type = this.dataset.type;
+                    let basePath = "{{ path }}";
+                    if(basePath && !basePath.endsWith('/')) basePath += '/';
+                    const name = this.dataset.name;
+                    if(type === 'folder') {
+                        const newPath = basePath + name;
+                        window.location.href = "{{ url_for('dashboard') }}" + (newPath ? '/' + encodeURIComponent(newPath) : '');
+                    } else if(type === 'file') {
+                        const filePath = basePath + name;
+                        window.location.href = "{{ url_for('preview', filename='DUMMY') }}".replace('DUMMY', encodeURIComponent(filePath));
+                    }
+                }
+            });
+            // Klik kanan
+            item.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                contextTarget = this;
+                const type = this.dataset.type;
+                // Show/hide menu items
+                contextMenu.querySelector('.context-preview').classList.toggle('d-none', type !== 'file');
+                contextMenu.querySelector('.context-download').classList.toggle('d-none', type !== 'file');
+                contextMenu.querySelector('.context-open').classList.toggle('d-none', type !== 'folder');
+                // Position menu
+                let x = e.clientX;
+                let y = e.clientY;
+                // Cek agar context menu tidak keluar dari viewport
+                contextMenu.style.display = 'block';
+                const menuRect = contextMenu.getBoundingClientRect();
+                contextMenu.style.display = '';
+                if (x + menuRect.width > window.innerWidth) x = window.innerWidth - menuRect.width - 5;
+                if (y + menuRect.height > window.innerHeight) y = window.innerHeight - menuRect.height - 5;
+                contextMenu.style.left = x + 'px';
+                contextMenu.style.top = y + 'px';
+                contextMenu.classList.remove('d-none');
+            });
+        });
+    }
+    handleFileItemEvents();
+    // Sembunyikan context menu jika klik di luar atau scroll
+    ['click', 'scroll', 'resize'].forEach(evt => {
+        window.addEventListener(evt, function(e) {
+            if (!contextMenu.contains(e.target)) {
+                contextMenu.classList.add('d-none');
+            }
+        });
+    });
+    // Action handlers
+    contextMenu.querySelector('.context-preview a').onclick = function(e) {
+        e.preventDefault();
+        if(contextTarget) {
+            let basePath = "{{ path }}";
+            if(basePath && !basePath.endsWith('/')) basePath += '/';
+            const filePath = basePath + contextTarget.dataset.name;
+            window.location.href = "{{ url_for('preview', filename='DUMMY') }}".replace('DUMMY', encodeURIComponent(filePath));
+        }
+    };
+    contextMenu.querySelector('.context-download a').onclick = function(e) {
+        e.preventDefault();
+        if(contextTarget) {
+            let basePath = "{{ path }}";
+            if(basePath && !basePath.endsWith('/')) basePath += '/';
+            const filePath = basePath + contextTarget.dataset.name;
+            window.location.href = "{{ url_for('download', path='DUMMY') }}".replace('DUMMY', encodeURIComponent(filePath));
+        }
+    };
+    contextMenu.querySelector('.context-open a').onclick = function(e) {
+        e.preventDefault();
+        if(contextTarget) {
+            let basePath = "{{ path }}";
+            if(basePath && !basePath.endsWith('/')) basePath += '/';
+            const newPath = basePath + contextTarget.dataset.name;
+            window.location.href = "{{ url_for('dashboard') }}" + (newPath ? '/' + encodeURIComponent(newPath) : '');
+        }
+    };
+    contextMenu.querySelector('.context-delete a').onclick = function(e) {
+        e.preventDefault();
+        if(contextTarget) {
+            const type = contextTarget.dataset.type;
+            let basePath = "{{ path }}";
+            if(basePath && !basePath.endsWith('/')) basePath += '/';
+            const name = contextTarget.dataset.name;
+            let url = '';
+            if(type === 'file') {
+                const filePath = basePath + name;
+                url = "{{ url_for('delete', filename='DUMMY') }}".replace('DUMMY', encodeURIComponent(filePath));
+            } else if(type === 'folder') {
+                const folderPath = basePath + name;
+                url = "{{ url_for('delete_folder', path='DUMMY') }}".replace('DUMMY', encodeURIComponent(folderPath));
+            }
+            if(url && confirm('Delete this ' + type + '?')) {
+                window.location.href = url;
+            }
+        }
+    };
+    contextMenu.querySelector('.context-properties a').onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if(contextTarget) {
+            let basePath = "{{ path }}";
+            if(basePath && !basePath.endsWith('/')) basePath += '/';
+            const name = contextTarget.dataset.name;
+            const dataPath = basePath + name;
+            showPropertiesModal(dataPath);
+            contextMenu.classList.add('d-none');
+        }
+    };
+    </script>
+    <script>
+    document.getElementById('updateNameBtn').onclick = async function(e) {
+        const input = document.getElementById('profileName');
+        const msgDiv = document.getElementById('updateNameMsg');
+        msgDiv.textContent = '';
+        msgDiv.classList.remove('text-danger', 'text-success');
+        const formData = new FormData();
+        formData.append('new_name', input.value);
+        const response = await fetch('/update_name', {
+            method: 'POST',
+            body: formData
+        });
+        const result = await response.json();
+        msgDiv.textContent = result.message;
+        if(result.success) {
+            msgDiv.classList.add('text-success');
+            setTimeout(() => { location.reload(); }, 800);
+        } else {
+            msgDiv.classList.add('text-danger');
+        }
+    };
+    </script>
+    <script>
+    // Tampilkan modal info pengembang otomatis hanya di dashboard
+    document.addEventListener('DOMContentLoaded', function() {
+      if (window.location.pathname === '/dashboard' || window.location.pathname === '/dashboard/') {
+        var devModalEl = document.getElementById('devInfoModal');
+        var devModal = new bootstrap.Modal(devModalEl);
+        var updateModal = new bootstrap.Modal(document.getElementById('updateInfoModal'));
+        // Tampilkan modal pengembang otomatis
+        devModal.show();
+        // Setelah modal pengembang ditutup, tampilkan modal update
+        devModalEl.addEventListener('hidden.bs.modal', function () {
+          updateModal.show();
+        });
+      }
+    });
+    </script>
+    <script>
+    // Modal konfirmasi hapus file/folder
+    window.addEventListener('DOMContentLoaded', function() {
+        const confirmDeleteModalFile = new bootstrap.Modal(document.getElementById('confirmDeleteModalFile'));
+        const confirmDeleteBtnFile = document.getElementById('confirmDeleteBtnFile');
+        document.querySelectorAll('.btn-delete-file, .btn-delete-folder').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation(); // Agar klik hapus tidak trigger klik file/folder
+                const href = this.getAttribute('data-href');
+                confirmDeleteBtnFile.setAttribute('href', href);
+                confirmDeleteModalFile.show();
+            });
+        });
+    });
+    </script>
+    <script>
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        document.getElementById('preloader').classList.add('hide');
+      }, 300);
+    });
+    </script>
+    <!-- Modal Properties -->
+    <div class="modal fade" id="propertiesModal" tabindex="-1" aria-labelledby="propertiesModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="propertiesModalLabel"><i class="bi bi-info-circle"></i> Properties</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+          </div>
+          <div class="modal-body">
+            <div id="propertiesContent">
+              <div class="text-center text-secondary">Memuat...</div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+    window.addEventListener('DOMContentLoaded', function() {
+        // ... existing code ...
+        // Handler tombol Properties universal
+        function showPropertiesModal(dataPath) {
+            const propertiesModal = new bootstrap.Modal(document.getElementById('propertiesModal'));
+            const propertiesContent = document.getElementById('propertiesContent');
+            propertiesContent.innerHTML = '<div class="text-center text-secondary">Memuat...</div>';
+            propertiesModal.show();
+            fetch('/properties', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path: dataPath })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.success) {
+                    const p = data.properties;
+                    let html = `<ul class='list-group'>`;
+                    html += `<li class='list-group-item'><strong>Nama:</strong> ${p.nama}</li>`;
+                    html += `<li class='list-group-item'><strong>Tipe:</strong> ${p.tipe}</li>`;
+                    if(p.ukuran !== null) html += `<li class='list-group-item'><strong>Ukuran:</strong> ${p.ukuran.toLocaleString()} byte</li>`;
+                    if(p.jumlah_item !== undefined) html += `<li class='list-group-item'><strong>Jumlah Item:</strong> ${p.jumlah_item}</li>`;
+                    html += `<li class='list-group-item'><strong>Waktu Dibuat:</strong> ${p.waktu_dibuat}</li>`;
+                    html += `<li class='list-group-item'><strong>Waktu Diubah:</strong> ${p.waktu_diubah}</li>`;
+                    html += `<li class='list-group-item'><strong>Path:</strong> ${p.path}</li>`;
+                    html += `</ul>`;
+                    propertiesContent.innerHTML = html;
+                } else {
+                    propertiesContent.innerHTML = `<div class='text-danger'>${data.message || 'Gagal memuat properties.'}</div>`;
+                }
+            })
+            .catch(() => {
+                propertiesContent.innerHTML = `<div class='text-danger'>Gagal memuat properties.</div>`;
+            });
+        }
+        document.querySelectorAll('.btn-properties').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                showPropertiesModal(this.getAttribute('data-path'));
+            });
+        });
+    });
+    </script>
+    <script>
+    // Handler for 'Buat Dokumen Word' button
+    document.addEventListener('DOMContentLoaded', function() {
+        var wordBtn = document.getElementById('newWordBtn');
+        if(wordBtn) {
+            wordBtn.addEventListener('click', function() {
+                wordBtn.disabled = true;
+                wordBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Membuat...';
+                fetch('/create_word', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: '{{ path }}' })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if(data.success && data.filename) {
+                        window.location.href = '/edit_word/' + encodeURIComponent(data.filename);
+                    } else {
+                        alert(data.message || 'Gagal membuat dokumen Word.');
+                        wordBtn.disabled = false;
+                        wordBtn.innerHTML = '<i class="bi bi-file-earmark-word"></i> Buat Dokumen Word';
+                    }
+                })
+                .catch(() => {
+                    alert('Gagal membuat dokumen Word.');
+                    wordBtn.disabled = false;
+                    wordBtn.innerHTML = '<i class="bi bi-file-earmark-word"></i> Buat Dokumen Word';
+                });
+            });
+        }
+        var excelBtn = document.getElementById('newExcelBtn');
+        if(excelBtn) {
+            excelBtn.addEventListener('click', function() {
+                excelBtn.disabled = true;
+                excelBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Membuat...';
+                fetch('/create_excel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: '{{ path }}' })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if(data.success && data.filename) {
+                        window.location.href = '/edit_excel/' + encodeURIComponent(data.filename);
+                    } else {
+                        alert(data.message || 'Gagal membuat file Excel.');
+                        excelBtn.disabled = false;
+                        excelBtn.innerHTML = '<i class="bi bi-file-earmark-excel"></i> Buat Excel';
+                    }
+                })
+                .catch(() => {
+                    alert('Gagal membuat file Excel.');
+                    excelBtn.disabled = false;
+                    excelBtn.innerHTML = '<i class="bi bi-file-earmark-excel"></i> Buat Excel';
+                });
+            });
+        }
+    });
+    </script>
+    <!-- Modal Media Player -->
+    <div class="modal fade" id="mediaPlayerModal" tabindex="-1" aria-labelledby="mediaPlayerModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="mediaPlayerModalLabel"><i class="bi bi-play-circle"></i> Media Player</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+          </div>
+          <div class="modal-body text-center">
+            <div id="mediaPlayerContainer">
+              <!-- Media element will be injected here -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.btn-play-media').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const filename = btn.getAttribute('data-filename');
+                const type = btn.getAttribute('data-type');
+                const container = document.getElementById('mediaPlayerContainer');
+                let html = '';
+                if(type === 'video') {
+                    html = `<video controls autoplay style="max-width:100%; max-height:60vh;">
+                        <source src="/download?path=${encodeURIComponent(filename)}" type="video/mp4">
+                        <source src="/download?path=${encodeURIComponent(filename)}" type="video/webm">
+                        <source src="/download?path=${encodeURIComponent(filename)}" type="video/ogg">
+                        Your browser does not support the video tag.
+                    </video>`;
+                } else if(type === 'audio') {
+                    html = `<audio controls autoplay style="width:100%;">
+                        <source src="/download?path=${encodeURIComponent(filename)}" type="audio/mpeg">
+                        <source src="/download?path=${encodeURIComponent(filename)}" type="audio/wav">
+                        <source src="/download?path=${encodeURIComponent(filename)}" type="audio/ogg">
+                        Your browser does not support the audio tag.
+                    </audio>`;
+                }
+                container.innerHTML = html;
+                var modal = new bootstrap.Modal(document.getElementById('mediaPlayerModal'));
+                modal.show();
+            });
+        });
+    });
+    </script>
+    <!-- Modal Konfirmasi Logout -->
+    <div class="modal fade" id="logoutModal" tabindex="-1" aria-labelledby="logoutModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="logoutModalLabel"><i class="bi bi-box-arrow-right text-danger me-2"></i>Konfirmasi Keluar</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Tutup"></button>
+          </div>
+          <div class="modal-body">
+            Apakah Anda yakin ingin keluar dari akun?
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+            <a href="{{ url_for('logout') }}" class="btn btn-danger">Ya, Keluar</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+    window.addEventListener('DOMContentLoaded', function() {
+        // Handler tombol Hapus Akun
+        const deleteAccountBtn = document.getElementById('deleteAccountBtn');
+        const confirmDeleteAccountBtn = document.getElementById('confirmDeleteAccountBtn');
+        const confirmDeleteModal = new bootstrap.Modal(document.getElementById('confirmDeleteModal'));
+
+        if (deleteAccountBtn && confirmDeleteAccountBtn) {
+            deleteAccountBtn.addEventListener('click', function() {
+                confirmDeleteModal.show();
+            });
+            confirmDeleteAccountBtn.addEventListener('click', async function() {
+                confirmDeleteAccountBtn.disabled = true;
+                confirmDeleteAccountBtn.textContent = 'Menghapus...';
+                try {
+                    const response = await fetch('/delete_account', {
+                        method: 'POST',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        alert('Akun Anda berhasil dihapus.');
+                        window.location.href = '/login';
+                    } else {
+                        alert(result.message || 'Gagal menghapus akun.');
+                    }
+                } catch (err) {
+                    alert('Terjadi kesalahan saat menghapus akun.');
+                } finally {
+                    confirmDeleteAccountBtn.disabled = false;
+                    confirmDeleteAccountBtn.textContent = 'Ya, Hapus Akun';
+                }
+            });
+        }
+    });
+    </script>
+    <script>
+    function updateClock() {
+      const now = new Date();
+      const h = String(now.getHours()).padStart(2, '0');
+      const m = String(now.getMinutes()).padStart(2, '0');
+      const s = String(now.getSeconds()).padStart(2, '0');
+      document.getElementById('clock').textContent = `${h}:${m}:${s}`;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+    </script>
+</div>
+
+<footer class="text-center py-3 mt-4 border-top bg-white w-100" style="position:relative; z-index:10;">
+    <span class="text-muted">&copy; 2025 Cloud File</span>
+</footer>
+{% if not user_has_package %}
+<!-- Banner Iklan Paket Cloud Storage (Sticky Bottom) -->
+<div id="cloudBanner" class="container-fluid p-0" style="position:fixed; bottom:0; left:0; width:100%; z-index:1080; display:block;">
+  <div class="card shadow-sm border bg-gradient mx-auto cloud-banner-card" style="background: linear-gradient(90deg, #fff 0%, rgba(224,231,255,0.85) 100%); max-width:700px; margin-bottom:1rem; border: 1px solid #e0e7ef; box-shadow: 0 2px 16px 0 #b6c6e633;">
+    <div class="card-body d-flex flex-column flex-md-row align-items-center justify-content-between gap-3 position-relative cloud-banner-body">
+      <div class="flex-grow-1 w-100">
+        <h5 class="mb-1 fw-bold cloud-banner-title"><i class="bi bi-cloud-plus text-primary me-2"></i>Upgrade Penyimpanan Cloud Anda!</h5>
+        <div class="d-flex flex-wrap gap-2 flex-column flex-md-row cloud-banner-paket">
+          <div class="p-3 rounded bg-white shadow-sm d-flex flex-column align-items-start flex-fill mb-2 mb-md-0" style="min-width: 140px;">
+            <span class="fw-semibold">Paket S</span>
+            <span class="badge bg-primary mb-1">50GB</span>
+            <span class="text-success fw-bold">Rp9.900</span>
+            <button class="btn btn-sm btn-outline-primary mt-2" onclick="window.location.href='/payment?package=S'">Beli Sekarang</button>
+            <a href="/package/S" class="btn btn-link btn-sm px-0 mt-1">Lihat Detail</a>
+          </div>
+          <div class="p-3 rounded bg-white shadow-sm d-flex flex-column align-items-start flex-fill mb-2 mb-md-0" style="min-width: 140px;">
+            <span class="fw-semibold">Paket M</span>
+            <span class="badge bg-success mb-1">100GB</span>
+            <span class="text-success fw-bold">Rp14.900</span>
+            <button class="btn btn-sm btn-outline-success mt-2" onclick="window.location.href='/payment?package=M'">Beli Sekarang</button>
+            <a href="/package/M" class="btn btn-link btn-sm px-0 mt-1">Lihat Detail</a>
+          </div>
+          <div class="p-3 rounded bg-white shadow-sm d-flex flex-column align-items-start flex-fill opacity-75" style="min-width: 140px;">
+            <span class="fw-semibold">Paket L</span>
+            <span class="badge bg-secondary mb-1">Segera Hadir</span>
+            <span class="text-muted fw-bold">500GB</span>
+            <button class="btn btn-sm btn-outline-secondary mt-2" disabled>Segera Hadir</button>
+            <a href="/package/L" class="btn btn-link btn-sm px-0 mt-1">Lihat Detail</a>
+          </div>
+          <div class="p-3 rounded bg-white shadow-sm d-flex flex-column align-items-start flex-fill opacity-75" style="min-width: 140px;">
+            <span class="fw-semibold">Paket XL</span>
+            <span class="badge bg-secondary mb-1">Segera Hadir</span>
+            <span class="text-muted fw-bold">1TB</span>
+            <button class="btn btn-sm btn-outline-secondary mt-2" disabled>Segera Hadir</button>
+            <span class="text-muted small mt-1">Paket XL segera hadir!</span>
+          </div>
+        </div>
+      </div>
+      <button id="closeBannerBtn" class="btn btn-outline-danger btn-sm align-self-start align-self-md-center ms-md-3 cloud-banner-close" title="Tutup"><i class="bi bi-x-lg"></i></button>
+    </div>
+  </div>
+</div>
+{% endif %}
+<style>
+#cloudBanner {
+  animation: slideUp 0.5s;
+  transition: opacity 0.5s, transform 0.5s;
+  background: transparent;
+}
+#cloudBanner.hide {
+  opacity: 0;
+  transform: translateY(100%);
+  pointer-events: none;
+}
+.cloud-banner-card {
+  width: 100%;
+  max-width: 700px !important;
+  margin-bottom: 0.2rem !important;
+  border-radius: 0.6rem;
+  background: rgba(255,255,255,0.97);
+  box-shadow: 0 2px 12px 0 #b6c6e622;
+  border: 1px solid #e0e7ef;
+}
+.cloud-banner-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1a237e;
+  margin-bottom: 0.5rem;
+}
+.cloud-banner-paket {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.3rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+  padding-bottom: 0.2rem;
+}
+.cloud-banner-paket > div {
+  flex: 0 0 170px;
+  min-width: 150px;
+  max-width: 220px;
+  padding: 0.38rem 0.6rem !important;
+  font-size: 0.92rem;
+  border-radius: 0.35rem;
+  margin-bottom: 0.2rem;
+  box-shadow: 0 1px 4px #b6c6e622;
+  background: #f8fafd;
+  border: 1px solid #e3e8f0;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+.cloud-banner-paket > div:hover {
+  box-shadow: 0 4px 16px #b6c6e655;
+  transform: translateY(-2px) scale(1.03);
+  background: #f1f5fe;
+}
+.cloud-banner-paket .badge {
+  font-size: 0.89rem;
+  padding: 0.22em 0.5em;
+  border-radius: 0.3rem;
+}
+.cloud-banner-paket .btn {
+  font-size: 0.91rem;
+  padding: 0.18rem 0.6rem;
+  width: 100%;
+  margin-top: 0.25rem;
+  border-radius: 0.3rem;
+}
+.cloud-banner-close {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  z-index: 2;
+}
+@media (max-width: 900px) {
+  .cloud-banner-card { max-width: 99vw !important; width: 99vw !important; }
+  .cloud-banner-paket { width: 99vw; }
+}
+@media (max-width: 576px) {
+  .cloud-banner-card { max-width: 100vw !important; width: 100vw !important; border-radius: 0.13rem !important; }
+  .cloud-banner-title { font-size: 0.85rem; }
+  .cloud-banner-paket {
+    gap: 0.04rem !important;
+    width: 100vw;
+    flex-wrap: nowrap !important;
+    flex-direction: row !important;
+    overflow-x: auto;
+  }
+  .cloud-banner-paket > div {
+    font-size: 0.85rem;
+    padding: 0.13rem 0.05rem !important;
+    border-radius: 0.07rem;
+    min-width: 120px;
+    max-width: 140px;
+    margin-bottom: 0.1rem;
+  }
+  .cloud-banner-close { top: 0.02rem; right: 0.02rem; }
+}
+</style>
+<script>
+(function() {
+  var banner = document.getElementById('cloudBanner');
+  banner.style.display = 'none';
+  setTimeout(function() {
+    banner.style.display = '';
+    banner.classList.remove('hide');
+  }, 5000);
+  document.getElementById('closeBannerBtn').onclick = function() {
+    banner.classList.add('hide');
+    setTimeout(function() {
+      banner.style.display = 'none';
+    }, 500);
+  };
+})();
+</script>
+</body>
+</html>

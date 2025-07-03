@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Edit Excel - {{ filename }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/plugins/css/pluginsCss.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/plugins/css/plugins.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/css/luckysheet.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/assets/iconfont/iconfont.css" />
+    <style>
+        #luckysheet {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            min-height: 60vh;
+            height: 65vh;
+            max-width: 100vw;
+            overflow-x: auto;
+            background: #fff;
+            border-radius: 0.5rem;
+        }
+        @media (max-width: 768px) {
+            #luckysheet { height: 45vh; min-height: 40vh; }
+            .card { padding: 1rem !important; }
+        }
+        .excel-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .excel-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            justify-content: flex-end;
+        }
+    </style>
+</head>
+<body class="bg-light">
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-12">
+            <div class="card shadow p-4 mb-4">
+                <h3 class="mb-3">Edit Excel</h3>
+                <div class="mb-2">
+                    <label for="filenameInput" class="form-label">Nama File</label>
+                    <input type="text" class="form-control" id="filenameInput" name="filename" value="{{ filename }}" required>
+                </div>
+                <div id="luckysheet"></div>
+                <div class="excel-actions">
+                    <button class="btn btn-primary" id="saveExcelBtn">Simpan</button>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Kembali</a>
+                    <button type="button" class="btn btn-danger ms-2" id="deleteExcelBtn">Hapus</button>
+                </div>
+                <div id="saveMsg" class="mt-2"></div>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/plugins/js/plugin.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/luckysheet@2.1.13/dist/luckysheet.umd.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    function toLuckysheetData(data) {
+        if (!data || !data.length) return [];
+        return data.map(row => Array.isArray(row) ? row.map(val => val !== null ? { v: val } : null) : []);
+    }
+    var luckysheetData = toLuckysheetData(JSON.parse('{{ data|tojson|safe }}'));
+    var colCount = (luckysheetData[0] && luckysheetData[0].length) ? luckysheetData[0].length : 26;
+    if (colCount < 26) colCount = 26;
+    // Pad setiap baris agar jumlah kolom 26
+    luckysheetData.forEach(function(row) {
+        while (row.length < colCount) row.push(null);
+    });
+    var sheetData = [{
+        name: 'Sheet1',
+        data: luckysheetData,
+        row: luckysheetData.length,
+        column: colCount
+    }];
+    luckysheet.create({
+        container: 'luckysheet',
+        lang: 'en',
+        data: sheetData,
+        showinfobar: false,
+        showtoolbar: true,
+        showsheetbar: true,
+        showstatisticBar: true,
+        allowEdit: true,
+        allowUpdate: true,
+        enableAddRow: true,
+        enableAddCol: true,
+        enableDeleteRow: true,
+        enableDeleteCol: true
+    });
+    document.getElementById('saveExcelBtn').onclick = function() {
+        var btn = this;
+        var msg = document.getElementById('saveMsg');
+        btn.disabled = true;
+        msg.textContent = '';
+        var luckysheetData = luckysheet.getAllSheets()[0].data;
+        var newFilename = document.getElementById('filenameInput').value.trim();
+        fetch('/save_excel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                filename: newFilename,
+                old_filename: '{{ filename }}',
+                data: luckysheetData
+            })
+        })
+        .then(res => res.json())
+        .then(function(data) {
+            if(data.success) {
+                msg.textContent = 'Berhasil disimpan!';
+                msg.className = 'text-success mt-2';
+                if (newFilename !== '{{ filename }}') {
+                    setTimeout(function() {
+                        window.location.href = '/edit_excel/' + encodeURIComponent(newFilename);
+                    }, 800);
+                }
+            } else {
+                msg.textContent = data.message || 'Gagal menyimpan file.';
+                msg.className = 'text-danger mt-2';
+            }
+            btn.disabled = false;
+        })
+        .catch(function() {
+            msg.textContent = 'Gagal menyimpan file.';
+            msg.className = 'text-danger mt-2';
+            btn.disabled = false;
+        });
+    };
+    document.getElementById('deleteExcelBtn').onclick = function() {
+        if(confirm('Yakin ingin menghapus file Excel ini?')) {
+            fetch('/delete_file_excel/' + encodeURIComponent(document.getElementById('filenameInput').value.trim()), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(res => res.json())
+            .then(function(data) {
+                if(data.success) {
+                    window.location.href = '/dashboard';
+                } else {
+                    alert(data.message || 'Gagal menghapus file.');
+                }
+            })
+            .catch(function() { alert('Gagal menghapus file.'); });
+        }
+    };
+});
+</script>
+</body>
+</html> 

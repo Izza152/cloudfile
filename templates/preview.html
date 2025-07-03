@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Preview - {{ filename }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+    body.dark-mode {
+        background: #181a1b !important;
+        color: #f1f1f1;
+    }
+    body.dark-mode .card {
+        background: #23272b;
+        color: #f1f1f1;
+        border-color: #222;
+    }
+    body.dark-mode .table {
+        background: #23272b;
+        color: #f1f1f1;
+    }
+    body.dark-mode .table-bordered th,
+    body.dark-mode .table-bordered td {
+        border-color: #333;
+    }
+    body.dark-mode .table-light th {
+        background: #23272b !important;
+        color: #f1f1f1 !important;
+    }
+    body.dark-mode .alert-warning {
+        background: #333 !important;
+        color: #ffc107 !important;
+        border-color: #444 !important;
+    }
+    </style>
+</head>
+<body class="{{ 'dark-mode' if 'dark-mode' in request.cookies.get('theme', '') else 'bg-light' }}">
+    <div class="container py-5">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary mb-3">&larr; Back to Dashboard</a>
+        <div class="card p-4">
+            <h4 class="mb-3">Preview: {{ filename }}</h4>
+            {% if excel_html %}
+                <div class="excel-preview">{{ excel_html|safe }}</div>
+            {% elif docx_html %}
+                <div class="docx-preview">{{ docx_html|safe }}</div>
+            {% else %}
+            {% set ext = filename.split('.')[-1].lower() %}
+            {% if ext in ['pdf'] %}
+                <iframe src="{{ url_for('serve_file', filename=filename) }}" width="100%" height="600px"></iframe>
+            {% elif ext in ['mp4', 'webm', 'ogg', 'avi', 'mkv'] %}
+                <video src="{{ url_for('serve_file', filename=filename) }}" controls width="100%" style="max-height:500px"></video>
+            {% elif ext in ['mp3', 'wav', 'ogg'] %}
+                <audio src="{{ url_for('serve_file', filename=filename) }}" controls style="width:100%"></audio>
+            {% elif ext in ['png', 'jpg', 'jpeg'] %}
+                <img src="{{ url_for('serve_file', filename=filename) }}" alt="{{ filename }}" class="img-fluid rounded mx-auto d-block" style="max-height:500px;"/>
+            {% else %}
+                <div class="alert alert-warning">Preview not available for this file type.</div>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+    <script>
+    (function() {
+        // Inisialisasi tema sebelum render (untuk konsistensi jika user toggle dari dashboard)
+        const theme = localStorage.getItem('theme');
+        if (theme === 'dark') {
+            document.body.classList.add('dark-mode');
+            document.body.classList.remove('bg-light');
+        } else {
+            document.body.classList.remove('dark-mode');
+            document.body.classList.add('bg-light');
+        }
+    })();
+    </script>
+</body>
+</html>
